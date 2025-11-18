@@ -8,10 +8,41 @@
       <div class="date-section">
         <span class="date-label">Date:</span>
         <span class="date-value">{{ currentDate }}</span>
-        <div class="status-indicator">
-          <span class="status-dot"></span>
-          <span class="status-text">Online</span>
+        <button class="config-button" type="button" @click="toggleConfigModal(true)">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.62l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 14.4 2h-3.8a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.14.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.3 8.02a.5.5 0 0 0 .12.62l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.62l1.92 3.32c.13.22.38.3.6.22l2.39-.96c.49.39 1.04.7 1.63.94l.36 2.54c.04.24.25.42.5.42h3.8c.25 0 .46-.18.5-.42l.36-2.54c.59-.24 1.14-.55 1.63-.94l2.39.96c.22.08.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.62l-2.03-1.58ZM12 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z"
+            />
+          </svg>
+          <span class="config-label">配置</span>
+        </button>
+      </div>
+    </div>
+
+    <div v-if="showConfigModal" class="modal-overlay" @click.self="toggleConfigModal(false)">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>系统配置</h2>
+          <button class="close-button" type="button" @click="toggleConfigModal(false)">×</button>
         </div>
+        <form class="modal-body" @submit.prevent="handleConfigSubmit">
+          <label>
+            <span>Base URL</span>
+            <input v-model="baseUrl" type="text" placeholder="https://api.example.com" />
+          </label>
+          <label>
+            <span>Model Name</span>
+            <input v-model="modelName" type="text" placeholder="gpt-4.1" />
+          </label>
+          <label>
+            <span>API Key</span>
+            <input v-model="apiKey" type="password" placeholder="sk-..." />
+          </label>
+          <div class="modal-actions">
+            <button class="ghost" type="button" @click="toggleConfigModal(false)">取消</button>
+            <button class="primary" type="submit">保存</button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -47,6 +78,10 @@ const currentDate = computed(() => {
 })
 
 const messages = ref([])
+const showConfigModal = ref(false)
+const baseUrl = ref('')
+const modelName = ref('')
+const apiKey = ref('')
 
 const progressItems = ref([
   { id: 1, title: '环境检测', description: '准备开始自动渗透测试...', status: '运行中' },
@@ -70,6 +105,19 @@ const handleSend = (text) => {
       })
     }, 1000)
   }
+}
+
+const toggleConfigModal = (visible) => {
+  showConfigModal.value = visible
+}
+
+const handleConfigSubmit = () => {
+  console.log('保存配置', {
+    baseUrl: baseUrl.value,
+    modelName: modelName.value,
+    apiKey: apiKey.value
+  })
+  toggleConfigModal(false)
 }
 </script>
 
@@ -130,41 +178,140 @@ const handleSend = (text) => {
   opacity: 0.9;
 }
 
-.status-indicator {
+.config-button {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(124, 210, 255, 0.35);
+  background: rgba(20, 39, 86, 0.65);
+  color: #c6e9ff;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.config-button svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.config-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(124, 210, 255, 0.6);
+  background: rgba(29, 56, 116, 0.8);
+}
+
+.config-label {
+  font-weight: 600;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 10, 24, 0.6);
+  backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-left: auto;
-  padding-left: 1rem;
-  border-left: 1px solid rgba(124, 210, 255, 0.25);
+  justify-content: center;
+  z-index: 5;
+  padding: 1.5rem;
 }
 
-.status-dot {
-  width: 6px;
-  height: 6px;
-  background: #8ce6ff;
-  border-radius: 50%;
-  box-shadow: 0 0 10px rgba(140, 230, 255, 0.9);
-  animation: pulse 2s ease-in-out infinite;
+.modal-card {
+  width: min(420px, 100%);
+  background: rgba(17, 27, 58, 0.95);
+  border: 1px solid rgba(124, 210, 255, 0.25);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(5, 8, 22, 0.7);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-    box-shadow: 0 0 8px rgba(0, 217, 255, 0.8);
-  }
-  50% {
-    opacity: 0.6;
-    box-shadow: 0 0 12px rgba(0, 217, 255, 1);
-  }
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #f7fbff;
 }
 
-.status-text {
-  font-size: 0.75rem;
-  color: #9beaff;
-  font-weight: 500;
+.modal-header h2 {
+  font-size: 1.1rem;
   letter-spacing: 0.05em;
-  text-transform: uppercase;
+}
+
+.close-button {
+  background: transparent;
+  border: none;
+  color: #9beaff;
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  color: #d9e9ff;
+}
+
+.modal-body label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
+}
+
+.modal-body input {
+  background: rgba(11, 20, 48, 0.85);
+  border: 1px solid rgba(124, 210, 255, 0.2);
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  color: #f7fbff;
+  font-size: 0.85rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.modal-body input:focus {
+  outline: none;
+  border-color: rgba(124, 210, 255, 0.7);
+  box-shadow: 0 0 0 2px rgba(124, 210, 255, 0.2);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.modal-actions button {
+  padding: 0.55rem 1.2rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  font-size: 0.8rem;
+}
+
+.modal-actions .ghost {
+  background: transparent;
+  border-color: rgba(124, 210, 255, 0.3);
+  color: #9beaff;
+}
+
+.modal-actions .primary {
+  background: linear-gradient(120deg, #5bd0ff, #7ae1ff);
+  color: #0b1836;
+  font-weight: 600;
 }
 
 .main-content {

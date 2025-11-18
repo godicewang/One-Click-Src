@@ -464,7 +464,7 @@ const closeToolModal = (confirmed) => {
   border: 1px solid rgba(132, 206, 255, 0.24);
   border-radius: 12px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  min-height: 125px;
+  min-height: 100px;
   align-items: center;
 }
 
@@ -543,7 +543,7 @@ const closeToolModal = (confirmed) => {
   font-family: inherit;
   overflow: hidden;
   width: 100%;
-  min-height: 125px;
+  min-height: 100px;
 }
 
 .action-button::before {
