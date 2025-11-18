@@ -111,13 +111,32 @@ const toggleConfigModal = (visible) => {
   showConfigModal.value = visible
 }
 
-const handleConfigSubmit = () => {
-  console.log('保存配置', {
-    baseUrl: baseUrl.value,
-    modelName: modelName.value,
-    apiKey: apiKey.value
-  })
-  toggleConfigModal(false)
+const handleConfigSubmit = async () => {
+  const payload = {
+    base_url: baseUrl.value,
+    model_name: modelName.value,
+    api_key: apiKey.value
+  }
+
+  try {
+    const response = await fetch('http://localhost:8000/api/config', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+
+    if (!response.ok) {
+      throw new Error(`请求失败：${response.status}`)
+    }
+
+    console.log('配置已保存', payload)
+    toggleConfigModal(false)
+  } catch (error) {
+    console.error('保存配置失败', error)
+    alert('保存配置失败，请检查后端服务是否已启动')
+  }
 }
 </script>
 
