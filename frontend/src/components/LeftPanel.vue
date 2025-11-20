@@ -8,61 +8,63 @@
           <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </div>
-      <h1 class="panel-title">One-Click-Src</h1>
+      <h1 class="panel-title">0dayAgent-ByGodice</h1>
       <div class="title-accent"></div>
     </div>
 
     <div class="panel-content">
-      <div class="history-top">
-        <div class="history-label">历史对话</div>
-        <button class="history-manage" @click="clearHistory">清空</button>
+      <div class="list-top">
+        <div class="list-label">漏洞列表</div>
+        <button class="list-manage" @click="toggleAllTargets">
+          {{ allExpanded ? '全部收起' : '全部展开' }}
+        </button>
       </div>
-      <div class="history-list">
-        <div
-          v-for="(item, index) in historyItems"
-          :key="index"
-          class="history-item"
-          :class="{ active: selectedHistory === index }"
-          @click="selectHistory(index)"
-        >
-          <div class="history-icon">
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M21 15C21 15.5304 20.7893 16.0391 20.4142 16.4142C20.0391 16.7893 19.5304 17 19 17H7L3 21V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V15Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
-          <div class="history-content">
-            <div class="history-title">{{ item.title }}</div>
-            <div class="history-time">{{ item.time }}</div>
-          </div>
+      <div class="target-list">
+        <div v-for="target in vulnerableTargets" :key="target.ip" class="target-card">
+          <button class="target-header" @click="toggleTarget(target.ip)">
+            <div class="target-meta">
+              <div class="target-ip">{{ target.ip }}</div>
+              <div class="target-info">{{ target.site }}</div>
+            </div>
+            <div class="target-stats">
+              <span class="target-count">{{ target.vulnerabilities.length }} 个漏洞</span>
+              <span class="target-time">{{ target.lastSeen }}</span>
+            </div>
+            <span class="target-arrow" :class="{ open: isExpanded(target.ip) }"></span>
+          </button>
+          <transition name="collapse">
+            <div v-if="isExpanded(target.ip)" class="vuln-list">
+              <div
+                v-for="vuln in target.vulnerabilities"
+                :key="vuln.id"
+                class="vuln-item"
+              >
+                <div class="vuln-main">
+                  <div class="vuln-title">{{ vuln.title }}</div>
+                  <div class="vuln-id">{{ vuln.id }}</div>
+                </div>
+                <div class="vuln-meta">
+                  <span class="severity-tag" :class="getSeverityClass(vuln.severity)">
+                    {{ getSeverityLabel(vuln.severity) }}
+                  </span>
+                  <span class="vuln-time">{{ vuln.time }}</span>
+                </div>
+              </div>
+            </div>
+          </transition>
         </div>
-        <div v-if="historyItems.length === 0" class="history-empty">
+        <div v-if="vulnerableTargets.length === 0" class="empty-state">
           <div class="empty-icon">
             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M21 15C21 15.5304 20.7893 16.0391 20.4142 16.4142C20.0391 16.7893 19.5304 17 19 17H7L3 21V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V15Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
-          <p class="empty-text">暂无历史对话</p>
+          <p class="empty-text">暂无漏洞数据</p>
         </div>
       </div>
     </div>
 
     <div class="panel-buttons">
-      <div class="toggle-card" v-for="toggle in toggleCards" :key="toggle.id">
-        <div class="toggle-header">
-          <div class="toggle-icon">
-            <span>{{ toggle.icon }}</span>
-          </div>
-          <div class="toggle-title">{{ toggle.title }}</div>
-        </div>
-        <button
-          class="toggle-switch"
-          :class="{ active: toggleStates[toggle.id] }"
-          @click="handleToggle(toggle.id)"
-        >
-          <span class="switch-thumb"></span>
-        </button>
-      </div>
-
       <button
         v-for="button in quickButtons"
         :key="button.id"
@@ -77,170 +79,101 @@
         <div class="button-glow"></div>
       </button>
     </div>
-
-    <!-- 自动渗透模态 -->
-    <Teleport to="body">
-      <div v-if="showVulnModal" class="modal-mask">
-        <div class="modal-panel">
-          <div class="modal-header">
-            <div>
-              <h3>选择漏洞类型</h3>
-              <p>关闭自动渗透时可按需选择需要处理的漏洞类别</p>
-            </div>
-            <button class="modal-close" @click="closeVulnModal(false)">×</button>
-          </div>
-          <div class="modal-options">
-            <label
-              v-for="option in vulnerabilityOptions"
-              :key="option.value"
-              class="modal-option"
-            >
-              <input type="checkbox" :value="option.value" v-model="selectedVulnerabilities" />
-              <span>{{ option.label }}</span>
-            </label>
-          </div>
-          <div class="modal-actions">
-            <button class="ghost-btn" @click="closeVulnModal(false)">取消</button>
-            <button class="primary-btn" @click="closeVulnModal(true)">确认策略</button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
-
-    <!-- 自动工具模态 -->
-    <Teleport to="body">
-      <div v-if="showToolModal" class="modal-mask">
-        <div class="modal-panel">
-          <div class="modal-header">
-            <div>
-              <h3>选择需要调用的工具</h3>
-              <p>关闭全自动Tool Call后可手动选择模型可调用的工具</p>
-            </div>
-            <button class="modal-close" @click="closeToolModal(false)">×</button>
-          </div>
-          <div class="modal-options">
-            <label
-              v-for="tool in toolOptions"
-              :key="tool.value"
-              class="modal-option"
-            >
-              <input type="checkbox" :value="tool.value" v-model="selectedTools" />
-              <span>{{ tool.label }}</span>
-            </label>
-          </div>
-          <div class="modal-actions">
-            <button class="ghost-btn" @click="closeToolModal(false)">取消</button>
-            <button class="primary-btn" @click="closeToolModal(true)">应用工具</button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { computed, ref } from 'vue'
 
 const activeButton = ref(null)
-const selectedHistory = ref(null)
-
-const historyItems = ref([
-  { title: '渗透测试会话 #1', time: '2024-01-15 14:30' },
-  { title: '漏洞扫描任务', time: '2024-01-15 10:20' },
-  { title: '系统安全评估', time: '2024-01-14 16:45' }
-])
 
 const quickButtons = [
   { id: 'rag-config', text: 'RAG配置', icon: '📚' },
   { id: 'web-search', text: '网页搜索', icon: '🌐' }
 ]
 
-const toggleStates = reactive({
-  'auto-penetrate': true,
-  'auto-tool': true
-})
-
-const toggleCards = [
+const vulnerableTargets = ref([
   {
-    id: 'auto-penetrate',
-    title: '自动渗透',
-    icon: '🎯'
+    ip: '192.168.1.10',
+    site: '目标站点 A',
+    lastSeen: '2024-01-15 14:30',
+    vulnerabilities: [
+      { id: 'VULN-001', title: 'SQL注入 - 登录接口', severity: 'high', time: '2024-01-15 14:20' },
+      { id: 'VULN-002', title: '目录遍历 - 文件下载', severity: 'medium', time: '2024-01-15 13:05' }
+    ]
   },
   {
-    id: 'auto-tool',
-    title: '自动工具',
-    icon: '🛠️'
+    ip: '203.0.113.22',
+    site: '目标站点 B',
+    lastSeen: '2024-01-14 16:45',
+    vulnerabilities: [
+      { id: 'VULN-005', title: '任意文件上传', severity: 'high', time: '2024-01-14 16:30' },
+      { id: 'VULN-006', title: '信息泄露 - 备份文件', severity: 'low', time: '2024-01-14 15:10' }
+    ]
+  },
+  {
+    ip: '10.0.0.5',
+    site: '目标站点 C',
+    lastSeen: '2024-01-13 11:20',
+    vulnerabilities: [
+      { id: 'VULN-010', title: '弱口令 - SSH', severity: 'medium', time: '2024-01-13 10:50' }
+    ]
   }
-]
+])
 
-const vulnerabilityOptions = [
-  { value: 'file-upload', label: '任意文件上传' },
-  { value: 'path-traversal', label: '目录遍历' },
-  { value: 'xss', label: 'XSS' },
-  { value: 'sql-injection', label: 'SQL注入' },
-  { value: 'command-injection', label: '命令注入' }
-]
+const expandedTargets = ref({})
 
-const toolOptions = [
-  { value: 'dirsearch', label: 'dirsearch' },
-  { value: 'sqlmap', label: 'sqlmap' },
-  { value: 'nmap', label: 'nmap' }
-]
+const ensureExpandedState = () => {
+  vulnerableTargets.value.forEach((target) => {
+    if (expandedTargets.value[target.ip] === undefined) {
+      expandedTargets.value[target.ip] = true
+    }
+  })
+}
 
-const selectedVulnerabilities = ref(vulnerabilityOptions.map((option) => option.value))
-const selectedTools = ref(toolOptions.map((tool) => tool.value))
-const showVulnModal = ref(false)
-const showToolModal = ref(false)
+ensureExpandedState()
+
+const allExpanded = computed(() => vulnerableTargets.value.every((target) => expandedTargets.value[target.ip]))
+
+const toggleTarget = (ip) => {
+  expandedTargets.value[ip] = !expandedTargets.value[ip]
+}
+
+const isExpanded = (ip) => expandedTargets.value[ip]
+
+const toggleAllTargets = () => {
+  const nextState = !allExpanded.value
+  vulnerableTargets.value.forEach((target) => {
+    expandedTargets.value[target.ip] = nextState
+  })
+}
+
+const severityMap = {
+  high: '高危',
+  medium: '中危',
+  low: '低危'
+}
+
+const getSeverityLabel = (level) => severityMap[level] || level
+
+const getSeverityClass = (level) => {
+  switch (level) {
+    case 'high':
+      return 'severity-high'
+    case 'medium':
+      return 'severity-medium'
+    case 'low':
+      return 'severity-low'
+    default:
+      return ''
+  }
+}
 
 const handleButtonClick = (id) => {
   activeButton.value = activeButton.value === id ? null : id
   console.log('点击了按钮:', id)
 }
 
-const selectHistory = (index) => {
-  selectedHistory.value = selectedHistory.value === index ? null : index
-  console.log('选择了历史记录:', index)
-}
-
-const clearHistory = () => {
-  historyItems.value = []
-  selectedHistory.value = null
-}
-
-const handleToggle = (id) => {
-  const nextState = !toggleStates[id]
-  toggleStates[id] = nextState
-
-  if (!nextState) {
-    if (id === 'auto-penetrate') {
-      showVulnModal.value = true
-    } else if (id === 'auto-tool') {
-      showToolModal.value = true
-    }
-  } else {
-    if (id === 'auto-penetrate') {
-      showVulnModal.value = false
-    } else if (id === 'auto-tool') {
-      showToolModal.value = false
-    }
-  }
-}
-
-const closeVulnModal = (confirmed) => {
-  if (!confirmed) {
-    toggleStates['auto-penetrate'] = true
-  }
-  showVulnModal.value = false
-  console.log('漏洞策略:', selectedVulnerabilities.value)
-}
-
-const closeToolModal = (confirmed) => {
-  if (!confirmed) {
-    toggleStates['auto-tool'] = true
-  }
-  showToolModal.value = false
-  console.log('工具策略:', selectedTools.value)
-}
 </script>
 
 <style scoped>
@@ -326,19 +259,20 @@ const closeToolModal = (confirmed) => {
   overflow-y: auto;
 }
 
-.history-top {
+.list-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0.75rem;
 }
 
-.history-label {
+.list-label {
   font-size: 0.85rem;
-  color: rgba(240, 247, 255, 0.8);
+  color: rgba(240, 247, 255, 0.85);
+  letter-spacing: 0.02em;
 }
 
-.history-manage {
+.list-manage {
   background: transparent;
   border: 1px solid rgba(76, 206, 255, 0.25);
   color: #7dd3fc;
@@ -349,78 +283,179 @@ const closeToolModal = (confirmed) => {
   transition: all 0.2s ease;
 }
 
-.history-manage:hover {
+.list-manage:hover {
   border-color: rgba(76, 206, 255, 0.5);
   color: #c3f0ff;
 }
 
-.history-list {
+.target-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.65rem;
 }
 
-.history-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  background: rgba(33, 46, 88, 0.6);
+.target-card {
+  background: rgba(33, 46, 88, 0.65);
   border: 1px solid rgba(132, 206, 255, 0.16);
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-.history-item:hover {
-  background: rgba(33, 46, 88, 0.8);
-  border-color: rgba(132, 206, 255, 0.35);
-  transform: translateX(2px);
-}
-
-.history-item.active {
-  background: rgba(140, 230, 255, 0.22);
-  border-color: rgba(140, 230, 255, 0.45);
-  box-shadow: 0 0 18px rgba(140, 230, 255, 0.28);
-}
-
-.history-icon {
-  width: 32px;
-  height: 32px;
-  display: flex;
+.target-header {
+  width: 100%;
+  padding: 0.85rem;
+  background: transparent;
+  color: inherit;
+  border: none;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.75rem;
   align-items: center;
-  justify-content: center;
-  color: #8be5ff;
-  opacity: 0.8;
-  flex-shrink: 0;
+  cursor: pointer;
+  text-align: left;
 }
 
-.history-icon svg {
-  width: 18px;
-  height: 18px;
-}
-
-.history-content {
-  flex: 1;
+.target-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
   min-width: 0;
 }
 
-.history-title {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: #f9fcff;
-  margin-bottom: 0.2rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.target-ip {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #f7fbff;
 }
 
-.history-time {
-  font-size: 0.68rem;
+.target-info {
+  font-size: 0.72rem;
   color: rgba(210, 220, 255, 0.75);
 }
 
-.history-empty {
+.target-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.7rem;
+  color: rgba(199, 210, 254, 0.8);
+}
+
+.target-count {
+  font-weight: 500;
+  color: #8be5ff;
+}
+
+.target-arrow {
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(132, 206, 255, 0.4);
+  border-radius: 50%;
+  position: relative;
+  transition: transform 0.2s ease;
+}
+
+.target-arrow::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border: solid rgba(255, 255, 255, 0.8);
+  border-width: 0 0 1px 1px;
+  transform: translate(-50%, -40%) rotate(-45deg);
+}
+
+.target-arrow.open {
+  transform: rotate(180deg);
+}
+
+.vuln-list {
+  padding: 0 0.85rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.vuln-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.65rem 0.5rem;
+  background: rgba(16, 25, 56, 0.85);
+  border: 1px solid rgba(132, 206, 255, 0.18);
+  border-radius: 10px;
+}
+
+.vuln-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.vuln-title {
+  font-size: 0.78rem;
+  color: #f5f8ff;
+}
+
+.vuln-id {
+  font-size: 0.68rem;
+  color: rgba(199, 210, 254, 0.65);
+}
+
+.vuln-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+  font-size: 0.68rem;
+  color: rgba(199, 210, 254, 0.8);
+}
+
+.severity-tag {
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.severity-high {
+  background: rgba(248, 113, 113, 0.18);
+  color: #fecaca;
+}
+
+.severity-medium {
+  background: rgba(251, 191, 36, 0.18);
+  color: #fde68a;
+}
+
+.severity-low {
+  background: rgba(52, 211, 153, 0.18);
+  color: #bbf7d0;
+}
+
+.collapse-enter-from,
+.collapse-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+
+.collapse-enter-active,
+.collapse-leave-active {
+  transition: all 0.2s ease;
+}
+
+.collapse-enter-to,
+.collapse-leave-from {
+  max-height: 500px;
+  opacity: 1;
+}
+
+.empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -447,84 +482,12 @@ const closeToolModal = (confirmed) => {
 
 .panel-buttons {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
   padding: 1rem;
   background: rgba(14, 18, 42, 0.45);
   border-top: 1px solid rgba(132, 206, 255, 0.2);
   justify-items: stretch;
-}
-
-.toggle-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-  padding: 0.8rem 0.75rem;
-  background: rgba(36, 49, 96, 0.65);
-  border: 1px solid rgba(132, 206, 255, 0.24);
-  border-radius: 12px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  min-height: 100px;
-  align-items: center;
-}
-
-.toggle-header {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  justify-content: center;
-}
-
-.toggle-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: rgba(140, 230, 255, 0.16);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-}
-
-.toggle-title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #f9fbff;
-}
-
-.toggle-switch {
-  position: relative;
-  width: 40px;
-  height: 24px;
-  border-radius: 999px;
-  border: 1px solid rgba(132, 206, 255, 0.35);
-  background: rgba(22, 30, 54, 0.75);
-  cursor: pointer;
-  transition: all 0.3s ease;
-  padding: 0;
-  align-self: center;
-}
-
-.toggle-switch .switch-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: rgba(220, 228, 255, 0.85);
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-}
-
-.toggle-switch.active {
-  background: linear-gradient(135deg, #8ce6ff, #6ea5ff);
-  border-color: transparent;
-}
-
-.toggle-switch.active .switch-thumb {
-  left: 20px;
-  background: #081225;
 }
 
 .action-button {
@@ -622,108 +585,4 @@ const closeToolModal = (confirmed) => {
   height: 120px;
 }
 
-.modal-mask {
-  position: fixed;
-  inset: 0;
-  background: rgba(3, 8, 20, 0.75);
-  backdrop-filter: blur(6px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-panel {
-  width: min(480px, 90vw);
-  background: #0f1a33;
-  border-radius: 18px;
-  border: 1px solid rgba(76, 206, 255, 0.2);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-  padding: 1.5rem;
-  color: #f0f7ff;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.modal-header p {
-  margin: 0.25rem 0 0;
-  font-size: 0.85rem;
-  color: rgba(226, 232, 255, 0.7);
-}
-
-.modal-close {
-  background: transparent;
-  border: none;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 1.25rem;
-  cursor: pointer;
-}
-
-.modal-options {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-  margin-bottom: 1.25rem;
-}
-
-.modal-option {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.65rem 0.75rem;
-  background: rgba(26, 36, 70, 0.6);
-  border: 1px solid rgba(76, 206, 255, 0.2);
-  border-radius: 10px;
-  font-size: 0.85rem;
-}
-
-.modal-option input {
-  accent-color: #4cd4ff;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-}
-
-.ghost-btn,
-.primary-btn {
-  border-radius: 10px;
-  padding: 0.55rem 1.2rem;
-  font-size: 0.85rem;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.ghost-btn {
-  background: rgba(255, 255, 255, 0.08);
-  color: #c7d2fe;
-}
-
-.ghost-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.primary-btn {
-  background: linear-gradient(135deg, #4cd4ff, #4b7dff);
-  color: #081225;
-  font-weight: 600;
-  box-shadow: 0 6px 16px rgba(76, 206, 255, 0.35);
-}
-
-.primary-btn:hover {
-  box-shadow: 0 8px 20px rgba(76, 206, 255, 0.45);
-}
 </style>

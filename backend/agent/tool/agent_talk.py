@@ -282,7 +282,7 @@ class ChatHistory:
 
 
 
-class LLMTalker:
+class AgentTalker:
     """ 统一管理配置加载与 LLM 交互的异步封装"""
 
     def __init__(

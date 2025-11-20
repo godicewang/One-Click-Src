@@ -4,7 +4,7 @@
       <input
         v-model="inputText"
         type="text"
-        placeholder="输入指令..."
+        placeholder="请输入目标网站 IP 地址"
         class="input-field"
         @keyup.enter="handleSend"
         @focus="isFocused = true"
@@ -14,7 +14,20 @@
     </div>
     <button class="send-button" @click="handleSend" :disabled="!inputText.trim()">
       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 19V5M5 12L12 5L19 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
+        <path
+          d="M12 12L17 7"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+        />
+        <path
+          d="M12 5V3M19 12H21M12 21V19M3 12H5"
+          stroke="currentColor"
+          stroke-width="1.3"
+          stroke-linecap="round"
+          opacity="0.6"
+        />
       </svg>
       <div class="button-shine"></div>
     </button>
