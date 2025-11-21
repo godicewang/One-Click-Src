@@ -2,6 +2,7 @@ import json
 import asyncio
 from openai import AsyncOpenAI
 from tool import basic_tool
+# Agent对话与管理机制
 from tool.agent_talk import ChatMessage
 from tool.agent_talk import ChatHistory
 from tool.agent_talk import AgentTalker

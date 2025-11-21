@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import copy
+import json
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence
 
 from openai import AsyncOpenAI
-from tool import basic_tool
+from agent.agent_tool_list import Tools, ToolError
+from . import basic_tool
 
 
 def _validate_agent_name(name: str) -> None:
@@ -227,10 +229,14 @@ class ChatHistory:
 
     # ---- tool_call ----
     async def add_tool_call_msg(
-        self, content: str, *, metadata: Optional[Dict[str, Any]] = None
+        self,
+        content: str,
+        *,
+        name: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> ChatMessage:
         return self._add_message(
-            role="tool_call", content=content, metadata=metadata
+            role="tool_call", content=content, name=name, metadata=metadata
         )
 
     async def get_tool_call_msgs(self) -> List[ChatMessage]:
@@ -244,10 +250,14 @@ class ChatHistory:
 
     # ---- tool_result ----
     async def add_tool_result_msg(
-        self, content: str, *, metadata: Optional[Dict[str, Any]] = None
+        self,
+        content: str,
+        *,
+        name: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> ChatMessage:
         return self._add_message(
-            role="tool_result", content=content, metadata=metadata
+            role="tool_result", content=content, name=name, metadata=metadata
         )
 
     async def get_tool_result_msgs(self) -> List[ChatMessage]:
@@ -458,3 +468,161 @@ class AgentTalker:
         # OpenAI ChatCompletionMessage 的 role 一般为 "assistant"
         await self._chat_history.add_agent_msg(self._agent_name, content)
         return content
+
+    async def run_tool_chat(
+        self,
+        query: str,
+        *,
+        tools_list: Sequence[Tools],
+        chat_history: Optional[List[Dict[str, str]]] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        extra_params: Optional[Dict[str, Any]] = None,
+        force_reload: bool = False,
+        tool_choice: str = "auto",
+        max_tool_iterations: int = 3,
+    ) -> str:
+        """
+        调用具备工具能力的模型，允许自动或强制使用工具。
+        Args mirror run_no_tool_chat, plus:
+            tools_list: 必填，Tools 实例列表，模型可用的工具集合。
+            tool_choice: "auto" 表示模型自行决定是否调用工具，"required" 表示必须选择一个工具。
+            max_tool_iterations: 工具交互最多循环次数，避免无限调用。
+        """
+        if not tools_list:
+            raise ValueError("tools_list 不能为空")
+        if tool_choice not in {"auto", "required"}:
+            raise ValueError("tool_choice 仅支持 'auto' 或 'required'")
+
+        await self._ensure_ready(force_reload)
+        assert self._config is not None and self._client is not None
+
+        merged_tools = Tools.merge(tools_list)
+        if not merged_tools.has_tools():
+            raise ValueError("tools_list 中没有可用工具")
+
+        # 传入历史消息
+        if chat_history is not None:
+            await self._chat_history.replace_with_external(chat_history)
+            await self._chat_history.add_user_msg(query)
+        else:
+            await self._chat_history.add_user_msg(query)
+
+        final_response: Optional[str] = None
+        # 循环调用工具，直到达到最大工具调用次数或获得模型回复
+        for _ in range(max_tool_iterations):
+            # 获取历史（压缩如果需要）
+            messages = await self._chat_history.get_messages()
+            messages = await self._compress_if_needed(messages)
+            await self._chat_history.overwrite(messages)
+            
+            # 组装给模型的消息
+            payload = self._build_payload(
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                extra_params=extra_params,
+            )
+            
+            # 组装工具
+            payload["tools"] = merged_tools.as_openai_tools()
+            payload["tool_choice"] = tool_choice  # 工具选择方式
+
+            # 和大模型交互
+            response = await self._client.chat.completions.create(**payload)
+            # 获取第一条回复
+            assistant_message = response.choices[0].message
+            assistant_content = assistant_message.content or ""
+
+            # 如果模型回复中包含工具调用
+            if getattr(assistant_message, "tool_calls", None):
+                # 如果包含中间思考内容，则加入历史
+                if assistant_content:
+                    await self._chat_history.add_agent_msg(
+                        self._agent_name, assistant_content
+                    )
+                # 处理工具调用
+                await self._handle_tool_calls(
+                    assistant_message.tool_calls, merged_tools
+                )
+                continue
+            # 最终答案:如果模型回复中不包含工具调用，其已得到最终答案
+            final_response = assistant_content
+            # 加入历史
+            await self._chat_history.add_agent_msg(self._agent_name, final_response)
+            # 返回最终答案
+            return final_response
+
+        # 如果最终答案为空，则抛出异常
+        if final_response is None:
+            raise RuntimeError("在达到最大工具调用次数后仍未获得模型回复")
+        return final_response
+
+    def _build_payload(
+        self,
+        *,
+        messages: List[ChatMessage],
+        temperature: Optional[float],
+        max_tokens: Optional[int],
+        extra_params: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {
+            "model": self._config.model_name,  # type: ignore[union-attr]
+            "messages": [msg.to_openai_payload() for msg in messages],
+        }
+        if temperature is not None:
+            payload["temperature"] = temperature
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
+        if extra_params:
+            payload.update(extra_params)
+        return payload
+
+    async def _handle_tool_calls(
+        self, tool_calls: Sequence[Any], tools: Tools
+    ) -> None:
+        for tool_call in tool_calls:
+            function_name = getattr(tool_call.function, "name", None)
+            arguments_str = getattr(tool_call.function, "arguments", "") or "{}"
+            try:
+                arguments = json.loads(arguments_str)
+            except json.JSONDecodeError:
+                arguments = {}
+
+            call_metadata = {
+                "tool_call_id": getattr(tool_call, "id", ""),
+                "tool_name": function_name,
+                "arguments": arguments,
+            }
+            await self._chat_history.add_tool_call_msg(
+                content=json.dumps(call_metadata, ensure_ascii=False),
+                name=function_name,
+                metadata=call_metadata,
+            )
+
+            if not function_name:
+                error_payload = {
+                    "error": "tool_call 缺少 function.name，无法执行"
+                }
+                await self._chat_history.add_tool_result_msg(
+                    name="unknown_tool",
+                    content=json.dumps(error_payload, ensure_ascii=False),
+                    metadata=error_payload,
+                )
+                continue
+
+            try:
+                tool_result = await tools.run(function_name, arguments)
+                tool_payload = tool_result.to_chat_message_payload()
+            except ToolError as exc:
+                tool_payload = {
+                    "role": "tool_result",
+                    "name": function_name,
+                    "content": json.dumps({"error": str(exc)}, ensure_ascii=False),
+                    "metadata": {"error": str(exc)},
+                }
+            await self._chat_history.add_tool_result_msg(
+                name=tool_payload.get("name"),
+                content=tool_payload["content"],
+                metadata=tool_payload.get("metadata"),
+            )
