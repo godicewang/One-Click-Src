@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, MutableMapping, Sequence
 
 from .base import BaseTool, ToolError, ToolResult
-from .network_scanner import NetworkScannerTool
+from .nmap import NmapTool
 """工具列表"""
 
 
@@ -74,6 +74,6 @@ __all__ = [
     "ToolError",
     "ToolResult",
     "Tools",
-    "NetworkScannerTool",
+    "NmapTool",
 ]
 

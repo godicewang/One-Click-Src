@@ -9,29 +9,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
 from agent.tool.agent_talk import AgentTalker, ChatHistory, ChatMessage  # type: ignore  # noqa: E402
-from agent.agent_tool_list.network_scanner import NetworkScannerTool  # type: ignore  # noqa: E402
+from agent.agent_tool_list.nmap import NmapTool  # type: ignore  # noqa: E402
 
 
 async def main() -> None:
-    my_scan = NetworkScannerTool()
-    result = await my_scan.run(
-        target = "https://cyber.cuit.edu.cn/",
-        mode = "ping",
-    )
-    print(result)
-    result = await my_scan.run(
-        target = "https://cyber.cuit.edu.cn/",
-        mode = "common_ports",
-        timeout = 1.5,
-        max_concurrency = 200,
-    )
-    print(result)
-    result = await my_scan.run(
-        target = "https://cyber.cuit.edu.cn/",
-        mode = "all_ports",
-        timeout = 1.5,
-        max_concurrency = 200,
-    )
+    nmap_tool = NmapTool()
+    result = await nmap_tool.run(target="https://cyber.cuit.edu.cn/", mode = "host_discovery")  # "host_discovery", "fast_scan", "service_version"
     print(result)
 
 if __name__ == "__main__":
